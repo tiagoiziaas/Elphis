@@ -5,8 +5,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -16,7 +16,7 @@ model User {
   name              String
   email             String             @unique
   passwordHash      String             @map("password_hash")
-  role              Role               @default(PATIENT)
+  role              String               @default("PATIENT")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   professionalProfile ProfessionalProfile?
@@ -25,11 +25,7 @@ model User {
   @@map("users")
 }
 
-enum Role {
-  PATIENT
-  PROFESSIONAL
-  ADMIN
-}
+
 
 // Professional Profile - public facing profile for health professionals
 model ProfessionalProfile {
@@ -62,7 +58,7 @@ model ProfessionalProfile {
   category                  Category?          @relation(fields: [categoryId], references: [id])
   businessCard              BusinessCard?
   defaultConsultationType   String?            @map("default_consultation_type")
-  defaultConsultationValue  Decimal?           @map("default_consultation_value") @db.Decimal(10, 2)
+  defaultConsultationValue  Float?           @map("default_consultation_value") 
   councilType               String?            @map("council_type")   // Ex: CRM, CRN, CREFITO, CRP, CFP
   councilNumber             String?            @map("council_number") // Ex: 12345-SP
 
@@ -80,7 +76,7 @@ model ProfessionalService {
   professionalProfile ProfessionalProfile @relation(fields: [professionalProfileId], references: [id], onDelete: Cascade)
   title             String
   description       String?
-  price             Decimal?           @db.Decimal(10, 2)
+  price             Float?           
   duration          Int?               // duration in minutes
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
@@ -98,12 +94,12 @@ model ContentPost {
   title             String
   slug              String             @unique
   excerpt           String?
-  content           String             @db.Text
+  content           String             
   coverImageUrl     String?            @map("cover_image_url")
   videoUrl          String?            @map("video_url")
   attachmentUrl     String?            @map("attachment_url")
-  type              ContentType        @default(ARTICLE)
-  status            ContentStatus      @default(DRAFT)
+  type              String        @default("ARTICLE")
+  status            String      @default("DRAFT")
   publishedAt       DateTime?          @map("published_at")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
@@ -115,16 +111,9 @@ model ContentPost {
   @@map("content_posts")
 }
 
-enum ContentType {
-  ARTICLE
-  VIDEO
-}
 
-enum ContentStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
+
+
 
 // Availability Rules - weekly schedule for professionals
 model AvailabilityRule {
@@ -159,12 +148,12 @@ model Appointment {
   scheduledDate     DateTime           @map("scheduled_date")
   scheduledTime     String             @map("scheduled_time") // HH:mm format - start time
   scheduledEndTime  String?            @map("scheduled_end_time") // HH:mm format - end time
-  status            AppointmentStatus  @default(PENDING)
-  notes             String?            @db.Text
+  status            String  @default("PENDING")
+  notes             String?            
   
   // Consultation details
-  consultationValue Decimal?           @map("consultation_value") @db.Decimal(10, 2)
-  attendanceType    AttendanceType     @default(IN_PERSON) @map("attendance_type") // ONLINE or IN_PERSON
+  consultationValue Float?           @map("consultation_value") 
+  attendanceType    String     @default("IN_PERSON") @map("attendance_type") // ONLINE or IN_PERSON
   
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
@@ -177,18 +166,9 @@ model Appointment {
   @@map("appointments")
 }
 
-enum AttendanceType {
-  ONLINE
-  IN_PERSON
-}
 
-enum AppointmentStatus {
-  PENDING
-  CONFIRMED
-  COMPLETED
-  CANCELLED
-  NO_SHOW
-}
+
+
 
 // Categories - for organizing professionals by specialty
 model Category {
@@ -234,7 +214,7 @@ model BusinessCard {
 
   // Additional info
   description       String?
-  services          String[]           // Array of service names
+  services          String?           // Array of service names
 
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
@@ -271,11 +251,11 @@ model Patient {
   // Health Information (optional)
   chiefComplaint    String?            @map("chief_complaint") // Queixa principal
   medicalHistory    String?            @map("medical_history") // Histórico resumido
-  notes             String?            @db.Text
+  notes             String?            
   
   // Default Consultation Settings
   defaultConsultationType   String?    @map("default_consultation_type")
-  defaultConsultationValue  Decimal?   @map("default_consultation_value") @db.Decimal(10, 2)
+  defaultConsultationValue  Float?   @map("default_consultation_value") 
   
   // Profile photo
   profileImageUrl   String?            @map("profile_image_url")

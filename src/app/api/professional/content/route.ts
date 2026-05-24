@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { prisma } from '@/lib/prisma'
-import { ContentType, ContentStatus } from '@prisma/client'
 
 // GET - Get all content posts for authenticated professional
 export async function GET(request: NextRequest) {
