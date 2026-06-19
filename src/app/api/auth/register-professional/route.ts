@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
+import { PasswordService } from '@/lib/passwordService'
+import { AuditLogger } from '@/lib/auditLogger'
 import { z } from 'zod'
 import { checkRegisterRateLimit } from '@/lib/rateLimiter'
 import { randomBytes } from 'crypto'
@@ -35,13 +36,17 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUser) {
+      await AuditLogger.log({
+        eventType: 'AUTH_REGISTER_ATTEMPT_DUPLICATE',
+        payload: { email: validatedData.email, type: 'PROFESSIONAL' },
+      })
       return NextResponse.json(
         { message: 'Não foi possível criar a conta com esses dados.' },
         { status: 400 }
       )
     }
 
-    const passwordHash = await bcrypt.hash(validatedData.password, 14)
+    const passwordHash = await PasswordService.hash(validatedData.password)
 
     const baseSlug = validatedData.name
       .toLowerCase()
@@ -78,6 +83,12 @@ export async function POST(request: NextRequest) {
       include: {
         professionalProfile: true,
       },
+    })
+
+    await AuditLogger.log({
+      userId: user.id,
+      eventType: 'USER_REGISTERED',
+      payload: { email: user.email, role: 'PROFESSIONAL', specialty: validatedData.specialty },
     })
 
     return NextResponse.json({

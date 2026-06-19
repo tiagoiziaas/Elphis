@@ -3,21 +3,22 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { supabase } from '@/lib/supabase'
 import { z } from 'zod'
+import { logError } from '@/lib/logger'
 
 const updateProfileSchema = z.object({
-  fullName: z.string().min(3).optional(),
-  title: z.string().min(3).optional(),
-  specialty: z.string().min(3).optional(),
-  city: z.string().min(2).optional(),
-  state: z.string().min(2).optional(),
-  bio: z.string().optional(),
-  approach: z.string().optional(),
-  headline: z.string().optional(),
-  profileImageUrl: z.string().url().optional().nullable(),
-  coverImageUrl: z.string().url().optional().nullable(),
-  whatsapp: z.string().optional().nullable(),
-  instagram: z.string().optional().nullable(),
-  website: z.string().optional().nullable(),
+  fullName: z.string().min(3).max(150).trim().optional(),
+  title: z.string().min(3).max(150).trim().optional(),
+  specialty: z.string().min(3).max(150).trim().optional(),
+  city: z.string().min(2).max(100).trim().optional(),
+  state: z.string().min(2).max(100).trim().optional(),
+  bio: z.string().max(3000).trim().optional(),
+  approach: z.string().max(3000).trim().optional(),
+  headline: z.string().max(300).trim().optional(),
+  profileImageUrl: z.string().url().max(2000).optional().nullable(),
+  coverImageUrl: z.string().url().max(2000).optional().nullable(),
+  whatsapp: z.string().max(30).trim().optional().nullable(),
+  instagram: z.string().max(100).trim().optional().nullable(),
+  website: z.string().url().max(500).optional().nullable(),
   isPublic: z.boolean().optional(),
 })
 
@@ -26,10 +27,7 @@ export async function PATCH(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const body = await request.json()
@@ -43,11 +41,8 @@ export async function PATCH(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Error updating profile:', error)
-      return NextResponse.json(
-        { error: 'Falha ao atualizar perfil' },
-        { status: 500 }
-      )
+      logError('Professional PATCH (Supabase)', error)
+      return NextResponse.json({ error: 'Falha ao atualizar perfil' }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -57,16 +52,12 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { errors: error.errors },
+        { errors: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })) },
         { status: 400 }
       )
     }
-
-    console.error('Error updating profile:', error)
-    return NextResponse.json(
-      { error: 'Falha ao atualizar perfil' },
-      { status: 500 }
-    )
+    logError('Professional PATCH', error)
+    return NextResponse.json({ error: 'Falha ao atualizar perfil' }, { status: 500 })
   }
 }
 
@@ -75,13 +66,9 @@ export async function GET(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    // Get professional profile
     const { data: profile, error: profileError } = await supabase
       .from('professional_profiles')
       .select('*')
@@ -89,32 +76,26 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Perfil não encontrado' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Perfil não encontrado' }, { status: 404 })
     }
 
-    // Get services
     const { data: services } = await supabase
       .from('professional_services')
       .select('*')
       .eq('professional_profile_id', profile.id)
 
-    // Get availability rules
     const { data: availabilityRules } = await supabase
       .from('availability_rules')
       .select('*')
       .eq('professional_profile_id', profile.id)
 
-    // Get content posts
     const { data: contentPosts } = await supabase
       .from('content_posts')
       .select('*')
       .eq('professional_profile_id', profile.id)
       .order('created_at', { ascending: false })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       profile: {
         ...profile,
         services: services || [],
@@ -123,10 +104,7 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    console.error('Error fetching profile:', error)
-    return NextResponse.json(
-      { error: 'Falha ao buscar perfil' },
-      { status: 500 }
-    )
+    logError('Professional GET', error)
+    return NextResponse.json({ error: 'Falha ao buscar perfil' }, { status: 500 })
   }
 }

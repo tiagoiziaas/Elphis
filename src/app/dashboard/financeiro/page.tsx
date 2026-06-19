@@ -234,7 +234,8 @@ export default function FinanceiroPage() {
         {/* ── Tabs ── */}
         <motion.div {...stagger(2)} className="mb-5 overflow-x-auto">
           <div className="flex items-center gap-1.5 bg-muted/40 border border-border/50 rounded-xl p-1 w-fit min-w-full sm:min-w-0">
-          {([\n            { key: 'movimentos', label: 'Movimentações', icon: BarChart3 },
+          {([
+            { key: 'movimentos', label: 'Movimentações', icon: BarChart3 },
             { key: 'pacientes',  label: 'Por Paciente',  icon: Users },
             { key: 'aportes',    label: 'Aportes',       icon: Wallet },
           ] as const).map(tab => (

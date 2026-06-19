@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { supabase } from "@/lib/supabase"
 import { z } from "zod"
+import { logError } from "@/lib/logger"
 
 const appointmentSchema = z.object({
-  professionalProfileId: z.string(),
+  professionalProfileId: z.string().min(1),
   serviceId: z.string().optional(),
-  patientName: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-  patientEmail: z.string().email("Email inválido"),
-  patientPhone: z.string().min(10, "Telefone inválido"),
-  scheduledDate: z.string(),
-  scheduledTime: z.string(),
-  notes: z.string().optional(),
+  patientName: z.string().min(2).max(200).trim(),
+  patientEmail: z.string().email().max(255),
+  patientPhone: z.string().min(10).max(30).trim(),
+  scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  scheduledTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+  notes: z.string().max(2000).trim().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -18,11 +19,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = appointmentSchema.parse(body)
 
-    // Check if professional exists
     const { data: professional } = await supabase
       .from("professional_profiles")
       .select("id")
       .eq("id", validatedData.professionalProfileId)
+      .eq("is_public", true)
       .single()
 
     if (!professional) {
@@ -32,7 +33,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if time slot is available
     const { data: existingAppointment } = await supabase
       .from("appointments")
       .select("id")
@@ -49,7 +49,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create appointment
     const { data: appointment, error: appointmentError } = await supabase
       .from("appointments")
       .insert({
@@ -89,7 +88,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (appointmentError) {
-      console.error("Error creating appointment:", appointmentError)
+      logError('Appointment creation (Supabase)', appointmentError)
       return NextResponse.json(
         { error: "Falha ao criar agendamento" },
         { status: 500 }
@@ -97,21 +96,17 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      {
-        message: "Agendamento realizado com sucesso",
-        appointment,
-      },
+      { message: "Agendamento realizado com sucesso", appointment },
       { status: 201 }
     )
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { errors: error.errors },
+        { errors: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })) },
         { status: 400 }
       )
     }
-
-    console.error("Appointment creation error:", error)
+    logError('Appointments POST', error)
     return NextResponse.json(
       { error: "Falha ao criar agendamento" },
       { status: 500 }
@@ -160,7 +155,7 @@ export async function GET(request: NextRequest) {
       .order("scheduled_date", { ascending: true })
 
     if (error) {
-      console.error("Error fetching appointments:", error)
+      logError('Appointments GET (Supabase)', error)
       return NextResponse.json(
         { error: "Falha ao buscar agendamentos" },
         { status: 500 }
@@ -169,7 +164,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ appointments })
   } catch (error) {
-    console.error("Error fetching appointments:", error)
+    logError('Appointments GET', error)
     return NextResponse.json(
       { error: "Falha ao buscar agendamentos" },
       { status: 500 }

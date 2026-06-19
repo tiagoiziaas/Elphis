@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+import { createCipheriv, createDecipheriv, randomBytes, timingSafeEqual, createHmac as nodeCreateHmac } from 'crypto'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12
@@ -61,3 +61,19 @@ export function isEncrypted(value: string | null | undefined): boolean {
     return false
   }
 }
+
+export function timingSafeCompare(a: string, b: string): boolean {
+  const secret = process.env.AUDIT_HMAC_SECRET || 'fallback-secret'
+  const hmacA = nodeCreateHmac('sha256', secret).update(a).digest()
+  const hmacB = nodeCreateHmac('sha256', secret).update(b).digest()
+  return timingSafeEqual(hmacA, hmacB)
+}
+
+export function createHmac(data: string): string {
+  const secret = process.env.AUDIT_HMAC_SECRET
+  if (!secret) {
+    throw new Error('AUDIT_HMAC_SECRET não configurado no .env')
+  }
+  return nodeCreateHmac('sha256', secret).update(data).digest('hex')
+}
+

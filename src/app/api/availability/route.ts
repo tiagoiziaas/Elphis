@@ -3,9 +3,10 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { logError } from '@/lib/logger'
 
 const availabilityRuleSchema = z.object({
-  weekDay: z.number().min(0).max(6),
+  weekDay: z.number().int().min(0).max(6),
   startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
   endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
   active: z.boolean().default(true),
@@ -16,10 +17,7 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const professionalProfile = await prisma.professionalProfile.findUnique({
@@ -50,12 +48,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { errors: error.errors },
+        { errors: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })) },
         { status: 400 }
       )
     }
-
-    console.error('Error creating availability rule:', error)
+    logError('Availability rule POST', error)
     return NextResponse.json(
       { error: 'Falha ao criar regra de disponibilidade' },
       { status: 500 }
@@ -68,10 +65,7 @@ export async function GET(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const professionalProfile = await prisma.professionalProfile.findUnique({
@@ -90,11 +84,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       rules: professionalProfile.availabilityRules,
     })
   } catch (error) {
-    console.error('Error fetching availability:', error)
+    logError('Availability GET', error)
     return NextResponse.json(
       { error: 'Falha ao buscar disponibilidade' },
       { status: 500 }
@@ -107,10 +101,7 @@ export async function PUT(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const professionalProfile = await prisma.professionalProfile.findUnique({
@@ -129,7 +120,6 @@ export async function PUT(request: NextRequest) {
       rules: z.array(availabilityRuleSchema),
     }).parse(body)
 
-    // Delete existing rules and create new ones
     await prisma.availabilityRule.deleteMany({
       where: { professionalProfileId: professionalProfile.id },
     })
@@ -148,12 +138,11 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { errors: error.errors },
+        { errors: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })) },
         { status: 400 }
       )
     }
-
-    console.error('Error updating availability:', error)
+    logError('Availability PUT', error)
     return NextResponse.json(
       { error: 'Falha ao atualizar disponibilidade' },
       { status: 500 }
@@ -166,10 +155,7 @@ export async function DELETE(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -200,11 +186,9 @@ export async function DELETE(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({
-      message: 'Regra excluída com sucesso',
-    })
+    return NextResponse.json({ message: 'Regra excluída com sucesso' })
   } catch (error) {
-    console.error('Error deleting availability rule:', error)
+    logError('Availability DELETE', error)
     return NextResponse.json(
       { error: 'Falha ao excluir regra' },
       { status: 500 }

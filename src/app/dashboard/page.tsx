@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import { NewContentModal } from '@/components/dashboard/NewContentModal'
 import { NewAppointmentModal } from '@/components/dashboard/NewAppointmentModal'
+import { BirthdayReminders } from '@/components/dashboard/BirthdayReminders'
 import { useToast } from '@/components/ui/use-toast'
 
 interface DashboardData {
@@ -278,6 +279,11 @@ export default function DashboardPage() {
               </motion.div>
             ))
           }
+        </div>
+
+        {/* ── Birthday Reminders ── */}
+        <div className="mb-8">
+          <BirthdayReminders />
         </div>
 
         {/* ── Appointments + Quick Actions ── */}

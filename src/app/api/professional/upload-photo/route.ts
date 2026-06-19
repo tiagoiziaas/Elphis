@@ -2,18 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { prisma } from '@/lib/prisma'
+import { logError } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
-// Max size: 2MB raw → ~2.7MB base64 (we enforce 2MB limit before encoding)
-const MAX_SIZE = 2 * 1024 * 1024 // 2MB
+const MAX_SIZE = 2 * 1024 * 1024
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const formData = await request.formData()
@@ -23,7 +23,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado' }, { status: 400 })
     }
 
-    // Validate file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
@@ -32,7 +31,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate file size (2MB max)
     if (file.size > MAX_SIZE) {
       return NextResponse.json(
         { error: 'Arquivo muito grande. Máximo 2MB.' },
@@ -40,14 +38,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Convert to base64 data URL — works on any hosting (Netlify, Vercel, etc.)
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const base64 = buffer.toString('base64')
     const mimeType = file.type || 'image/jpeg'
     const dataUrl = `data:${mimeType};base64,${base64}`
 
-    // Update profile in database
     await prisma.professionalProfile.update({
       where: { userId: session.user.id },
       data: { profileImageUrl: dataUrl },
@@ -55,11 +51,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: dataUrl, success: true })
   } catch (error) {
-    console.error('Upload photo error:', error)
-    return NextResponse.json(
-      { error: 'Falha ao fazer upload da foto' },
-      { status: 500 }
-    )
+    logError('Upload photo', error)
+    return NextResponse.json({ error: 'Falha ao fazer upload da foto' }, { status: 500 })
   }
 }
-

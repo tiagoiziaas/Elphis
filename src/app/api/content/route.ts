@@ -3,25 +3,26 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { logError } from '@/lib/logger'
 
 const createContentSchema = z.object({
-  title: z.string().min(3, 'Título é obrigatório'),
-  slug: z.string().optional(),
-  excerpt: z.string().optional(),
-  content: z.string().min(10, 'Conteúdo é obrigatório'),
-  coverImageUrl: z.string().url().optional().nullable(),
-  videoUrl: z.string().url().optional().nullable(),
+  title: z.string().min(3).max(300).trim(),
+  slug: z.string().max(350).optional(),
+  excerpt: z.string().max(1000).trim().optional(),
+  content: z.string().min(10).max(50000),
+  coverImageUrl: z.string().url().max(2000).optional().nullable(),
+  videoUrl: z.string().url().max(2000).optional().nullable(),
   type: z.enum(['ARTICLE', 'VIDEO']),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).default('DRAFT'),
 })
 
 const updateContentSchema = z.object({
-  title: z.string().min(3).optional(),
-  slug: z.string().optional(),
-  excerpt: z.string().optional(),
-  content: z.string().min(10).optional(),
-  coverImageUrl: z.string().url().optional().nullable(),
-  videoUrl: z.string().url().optional().nullable(),
+  title: z.string().min(3).max(300).trim().optional(),
+  slug: z.string().max(350).optional(),
+  excerpt: z.string().max(1000).trim().optional(),
+  content: z.string().min(10).max(50000).optional(),
+  coverImageUrl: z.string().url().max(2000).optional().nullable(),
+  videoUrl: z.string().url().max(2000).optional().nullable(),
   type: z.enum(['ARTICLE', 'VIDEO']).optional(),
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
 })
@@ -31,10 +32,7 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const professionalProfile = await prisma.professionalProfile.findUnique({
@@ -51,8 +49,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = createContentSchema.parse(body)
 
-    // Generate slug if not provided
-    const slug = validatedData.slug || 
+    const slug = validatedData.slug ||
       validatedData.title
         .toLowerCase()
         .normalize('NFD')
@@ -78,12 +75,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { errors: error.errors },
+        { errors: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })) },
         { status: 400 }
       )
     }
-
-    console.error('Error creating content:', error)
+    logError('Content POST', error)
     return NextResponse.json(
       { error: 'Falha ao criar conteúdo' },
       { status: 500 }
@@ -96,10 +92,7 @@ export async function GET(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const professionalProfile = await prisma.professionalProfile.findUnique({
@@ -120,7 +113,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ posts: contentPosts })
   } catch (error) {
-    console.error('Error fetching content:', error)
+    logError('Content GET', error)
     return NextResponse.json(
       { error: 'Falha ao buscar conteúdos' },
       { status: 500 }
@@ -133,10 +126,7 @@ export async function DELETE(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -167,11 +157,9 @@ export async function DELETE(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({
-      message: 'Conteúdo excluído com sucesso',
-    })
+    return NextResponse.json({ message: 'Conteúdo excluído com sucesso' })
   } catch (error) {
-    console.error('Error deleting content:', error)
+    logError('Content DELETE', error)
     return NextResponse.json(
       { error: 'Falha ao excluir conteúdo' },
       { status: 500 }
@@ -184,10 +172,7 @@ export async function PATCH(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Não autorizado' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -232,12 +217,11 @@ export async function PATCH(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { errors: error.errors },
+        { errors: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })) },
         { status: 400 }
       )
     }
-
-    console.error('Error updating content:', error)
+    logError('Content PATCH', error)
     return NextResponse.json(
       { error: 'Falha ao atualizar conteúdo' },
       { status: 500 }

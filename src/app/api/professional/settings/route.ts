@@ -3,14 +3,23 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { z } from 'zod'
+import { logError } from '@/lib/logger'
 
-// GET - Get settings and business card
+const newPasswordSchema = z
+  .string()
+  .min(8, 'Senha deve ter pelo menos 8 caracteres')
+  .max(128)
+  .regex(/[A-Z]/, 'Deve conter ao menos uma letra maiúscula')
+  .regex(/[0-9]/, 'Deve conter ao menos um número')
+  .regex(/[^A-Za-z0-9]/, 'Deve conter ao menos um caractere especial')
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const professional = await (prisma.professionalProfile as any).findUnique({
@@ -22,8 +31,17 @@ export async function GET(request: NextRequest) {
     })
 
     if (!professional) {
-      return NextResponse.json({ error: 'Professional profile not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Perfil profissional não encontrado' }, { status: 404 })
     }
+
+    const businessCardData = professional.businessCard
+      ? {
+          ...professional.businessCard,
+          services: professional.businessCard.services
+            ? JSON.parse(professional.businessCard.services)
+            : [],
+        }
+      : null
 
     return NextResponse.json({
       settings: {
@@ -34,55 +52,55 @@ export async function GET(request: NextRequest) {
           ? Number(professional.defaultConsultationValue)
           : null,
       },
-      businessCard: professional.businessCard,
+      businessCard: businessCardData,
     })
   } catch (error) {
-    console.error('Settings GET error:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch settings' },
-      { status: 500 }
-    )
+    logError('Settings GET', error)
+    return NextResponse.json({ error: 'Falha ao buscar configurações' }, { status: 500 })
   }
 }
 
-// PATCH - Update settings
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const body = await request.json()
     const { settings, businessCard, password } = body
 
-    // Get professional profile
     const professional = await (prisma.professionalProfile as any).findUnique({
       where: { userId: session.user.id },
     })
 
     if (!professional) {
-      return NextResponse.json({ error: 'Professional profile not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Perfil profissional não encontrado' }, { status: 404 })
     }
 
-    // Update password if provided
     if (password?.current && password?.new) {
-      const user = await prisma.user.findUnique({
-        where: { id: session.user.id },
-      })
+      const passwordValidation = newPasswordSchema.safeParse(password.new)
+      if (!passwordValidation.success) {
+        return NextResponse.json(
+          { error: 'Nova senha não atende aos requisitos de segurança', errors: passwordValidation.error.errors },
+          { status: 400 }
+        )
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: session.user.id } })
 
       if (!user) {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 })
+        return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
       }
 
       const passwordMatch = await bcrypt.compare(password.current, user.passwordHash)
 
       if (!passwordMatch) {
-        return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 })
+        return NextResponse.json({ error: 'Senha atual incorreta' }, { status: 400 })
       }
 
-      const newHash = await bcrypt.hash(password.new, 10)
+      const newHash = await bcrypt.hash(password.new, 14)
 
       await prisma.user.update({
         where: { id: session.user.id },
@@ -90,7 +108,6 @@ export async function PATCH(request: NextRequest) {
       })
     }
 
-    // Update professional settings
     if (settings) {
       await (prisma.professionalProfile as any).update({
         where: { userId: session.user.id },
@@ -108,68 +125,45 @@ export async function PATCH(request: NextRequest) {
       })
     }
 
-    // Update or create business card
     if (businessCard) {
       const existingCard = await prisma.businessCard.findUnique({
         where: { professionalProfileId: professional.id },
       })
 
+      const cardData = {
+        phone: businessCard.phone,
+        email: businessCard.email,
+        website: businessCard.website,
+        instagram: businessCard.instagram,
+        facebook: businessCard.facebook,
+        linkedin: businessCard.linkedin,
+        youtube: businessCard.youtube,
+        tiktok: businessCard.tiktok,
+        address: businessCard.address,
+        addressNumber: businessCard.addressNumber,
+        addressComplement: businessCard.addressComplement,
+        neighborhood: businessCard.neighborhood,
+        city: businessCard.city,
+        state: businessCard.state,
+        zipCode: businessCard.zipCode,
+        description: businessCard.description,
+        services: Array.isArray(businessCard.services)
+          ? JSON.stringify(businessCard.services)
+          : (businessCard.services ?? null),
+      }
+
       if (existingCard) {
-        await prisma.businessCard.update({
-          where: { id: existingCard.id },
-          data: {
-            phone: businessCard.phone,
-            email: businessCard.email,
-            website: businessCard.website,
-            instagram: businessCard.instagram,
-            facebook: businessCard.facebook,
-            linkedin: businessCard.linkedin,
-            youtube: businessCard.youtube,
-            tiktok: businessCard.tiktok,
-            address: businessCard.address,
-            addressNumber: businessCard.addressNumber,
-            addressComplement: businessCard.addressComplement,
-            neighborhood: businessCard.neighborhood,
-            city: businessCard.city,
-            state: businessCard.state,
-            zipCode: businessCard.zipCode,
-            description: businessCard.description,
-            services: businessCard.services,
-          },
-        })
+        await prisma.businessCard.update({ where: { id: existingCard.id }, data: cardData })
       } else {
         await prisma.businessCard.create({
-          data: {
-            professionalProfileId: professional.id,
-            phone: businessCard.phone,
-            email: businessCard.email,
-            website: businessCard.website,
-            instagram: businessCard.instagram,
-            facebook: businessCard.facebook,
-            linkedin: businessCard.linkedin,
-            youtube: businessCard.youtube,
-            tiktok: businessCard.tiktok,
-            address: businessCard.address,
-            addressNumber: businessCard.addressNumber,
-            addressComplement: businessCard.addressComplement,
-            neighborhood: businessCard.neighborhood,
-            city: businessCard.city,
-            state: businessCard.state,
-            zipCode: businessCard.zipCode,
-            description: businessCard.description,
-            services: businessCard.services || [],
-          },
+          data: { professionalProfileId: professional.id, ...cardData },
         })
       }
     }
 
-    // Fetch updated data
     const updatedProfessional = await (prisma.professionalProfile as any).findUnique({
       where: { userId: session.user.id },
-      include: {
-        businessCard: true,
-        user: true,
-      },
+      include: { businessCard: true, user: true },
     })
 
     return NextResponse.json({
@@ -181,13 +175,17 @@ export async function PATCH(request: NextRequest) {
           ? Number(updatedProfessional.defaultConsultationValue)
           : null,
       },
-      businessCard: updatedProfessional?.businessCard,
+      businessCard: updatedProfessional?.businessCard
+        ? {
+            ...updatedProfessional.businessCard,
+            services: updatedProfessional.businessCard.services
+              ? JSON.parse(updatedProfessional.businessCard.services)
+              : [],
+          }
+        : null,
     })
   } catch (error) {
-    console.error('Settings PATCH error:', error)
-    return NextResponse.json(
-      { error: 'Failed to update settings' },
-      { status: 500 }
-    )
+    logError('Settings PATCH', error)
+    return NextResponse.json({ error: 'Falha ao atualizar configurações' }, { status: 500 })
   }
 }

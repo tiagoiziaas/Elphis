@@ -762,3 +762,34 @@ textarea {
   table { min-width: 600px; }
   .overflow-x-auto table { min-width: auto; }
 }
+
+/* ============================================
+   BRAIN SVG STYLING
+   ============================================ */
+
+.brain-svg {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  display: block;
+  pointer-events: auto;
+  background: transparent;
+  background-color: transparent;
+}
+
+/* Make sure all SVG elements inside have no unwanted backgrounds */
+.brain-svg svg {
+  background: transparent;
+  background-color: transparent;
+}
+
+.brain-svg path {
+  pointer-events: visiblePainted;
+  cursor: pointer;
+  transition: fill 0.25s ease, opacity 0.25s ease, filter 0.25s ease;
+}
+
+.brain-svg path:hover {
+  opacity: 0.8;
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.3));
+}

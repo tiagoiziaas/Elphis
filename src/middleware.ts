@@ -10,6 +10,18 @@ const securityHeaders = {
   'X-DNS-Prefetch-Control': 'off',
   'X-Download-Options': 'noopen',
   'X-Permitted-Cross-Domain-Policies': 'none',
+  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "base-uri 'self'",
+  ].join('; '),
 }
 
 function applySecurityHeaders(response: NextResponse): void {
@@ -29,7 +41,14 @@ export default withAuth(
       authorized({ token, req }) {
         const { pathname } = req.nextUrl
 
-        if (pathname.startsWith('/api/professional') || pathname.startsWith('/api/financeiro') || pathname.startsWith('/api/appointments') || pathname.startsWith('/api/content') || pathname.startsWith('/api/availability') || pathname.startsWith('/api/lgpd')) {
+        if (
+          pathname.startsWith('/api/professional') ||
+          pathname.startsWith('/api/financeiro') ||
+          pathname.startsWith('/api/appointments') ||
+          pathname.startsWith('/api/content') ||
+          pathname.startsWith('/api/availability') ||
+          pathname.startsWith('/api/lgpd')
+        ) {
           return !!token
         }
 

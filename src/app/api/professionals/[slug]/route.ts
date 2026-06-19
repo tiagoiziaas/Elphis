@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { logError } from "@/lib/logger"
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,6 @@ export async function GET(
   try {
     const slug = params.slug
 
-    // Get professional profile with all relations
     const profile = await prisma.professionalProfile.findUnique({
       where: { slug },
       include: {
@@ -58,14 +58,19 @@ export async function GET(
       )
     }
 
-    // Transform availability rules to friendly format
+    if (!profile.isPublic) {
+      return NextResponse.json(
+        { error: "Profissional não encontrado" },
+        { status: 404 }
+      )
+    }
+
     const weekDayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
     const availability = profile.availabilityRules.map((rule) => ({
       day: weekDayNames[rule.weekDay],
       hours: `${rule.startTime} - ${rule.endTime}`,
     }))
 
-    // Transform content posts
     const content = profile.contentPosts.map((post) => ({
       id: post.id,
       title: post.title,
@@ -77,7 +82,6 @@ export async function GET(
       date: post.publishedAt || post.createdAt,
     }))
 
-    // Transform services
     const formattedServices = profile.services.map((service) => ({
       id: service.id,
       title: service.title,
@@ -86,7 +90,6 @@ export async function GET(
       duration: service.duration || 60,
     }))
 
-    // Generate gradient based on slug hash for consistency
     const gradients = [
       "from-orange-500 via-amber-400 to-orange-600",
       "from-violet-600 via-purple-500 to-blue-600",
@@ -96,7 +99,9 @@ export async function GET(
       "from-sky-500 via-blue-400 to-indigo-600",
     ]
     const hash = slug.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
-    const gradient = gradients[hash % gradients.length]
+    const gradient = slug === 'leila-dos-santos-lopes-59837c'
+      ? "from-[#5c061e] via-[#701a2b] to-[#9a2c41]"
+      : gradients[hash % gradients.length]
 
     return NextResponse.json({
       professional: {
@@ -118,11 +123,11 @@ export async function GET(
         services: formattedServices,
         availability,
         content,
-        // Business card data - using specific names to avoid conflicts
         businessCard: {
           phone: profile.businessCard?.phone,
           email: profile.businessCard?.email,
           website: profile.businessCard?.website || profile.website,
+          instagram: profile.businessCard?.instagram || profile.instagram,
           facebook: profile.businessCard?.facebook,
           linkedin: profile.businessCard?.linkedin,
           youtube: profile.businessCard?.youtube,
@@ -135,12 +140,16 @@ export async function GET(
           state: profile.businessCard?.state || profile.state,
           zipCode: profile.businessCard?.zipCode,
           description: profile.businessCard?.description,
-          services: profile.businessCard?.services || [],
+          services: (() => {
+            const raw = profile.businessCard?.services
+            if (!raw) return []
+            try { return JSON.parse(raw) } catch { return [] }
+          })(),
         },
       },
     })
   } catch (error) {
-    console.error("Error fetching professional:", error)
+    logError('Professional slug GET', error)
     return NextResponse.json(
       { error: "Falha ao buscar profissional" },
       { status: 500 }

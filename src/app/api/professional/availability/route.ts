@@ -2,25 +2,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+import { logError } from '@/lib/logger'
 
-// GET - Get availability rules for authenticated professional
+const availabilityRuleSchema = z.object({
+  weekDay: z.number().int().min(0).max(6),
+  startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+  endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/),
+  active: z.boolean().default(true),
+})
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const professional = await prisma.professionalProfile.findUnique({
       where: { userId: session.user.id },
-      include: {
-        availabilityRules: true,
-      },
+      include: { availabilityRules: true },
     })
 
     if (!professional) {
-      return NextResponse.json({ error: 'Professional profile not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Perfil profissional não encontrado' }, { status: 404 })
     }
 
     const availability = professional.availabilityRules.map((rule) => ({
@@ -33,21 +39,17 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ availability })
   } catch (error) {
-    console.error('Availability GET error:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch availability rules' },
-      { status: 500 }
-    )
+    logError('Availability GET', error)
+    return NextResponse.json({ error: 'Falha ao buscar disponibilidade' }, { status: 500 })
   }
 }
 
-// POST - Create or update availability rules
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const professional = await prisma.professionalProfile.findUnique({
@@ -55,25 +57,24 @@ export async function POST(request: NextRequest) {
     })
 
     if (!professional) {
-      return NextResponse.json({ error: 'Professional profile not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Perfil profissional não encontrado' }, { status: 404 })
     }
 
     const body = await request.json()
-    const rules = body.rules || []
+    const rulesSchema = z.object({ rules: z.array(availabilityRuleSchema) })
+    const { rules } = rulesSchema.parse(body)
 
-    // Delete existing rules
     await prisma.availabilityRule.deleteMany({
       where: { professionalProfileId: professional.id },
     })
 
-    // Create new rules
-    const createdRules = await prisma.availabilityRule.createMany({
-      data: rules.map((rule: any) => ({
+    await prisma.availabilityRule.createMany({
+      data: rules.map((rule) => ({
         professionalProfileId: professional.id,
         weekDay: rule.weekDay,
         startTime: rule.startTime,
         endTime: rule.endTime,
-        active: rule.active !== undefined ? rule.active : true,
+        active: rule.active,
       })),
     })
 
@@ -91,10 +92,13 @@ export async function POST(request: NextRequest) {
       })),
     })
   } catch (error) {
-    console.error('Availability POST error:', error)
-    return NextResponse.json(
-      { error: 'Failed to save availability rules' },
-      { status: 500 }
-    )
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Dados inválidos', errors: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })) },
+        { status: 400 }
+      )
+    }
+    logError('Availability POST', error)
+    return NextResponse.json({ error: 'Falha ao salvar disponibilidade' }, { status: 500 })
   }
 }

@@ -2,14 +2,37 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/authOptions'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
+import { logError } from '@/lib/logger'
 
-// GET - Get professional profile
+export const dynamic = 'force-dynamic'
+
+const profilePatchSchema = z.object({
+  fullName: z.string().min(2).max(150).trim().optional(),
+  name: z.string().min(2).max(150).trim().optional(),
+  title: z.string().min(2).max(150).trim().optional(),
+  specialty: z.string().min(2).max(150).trim().optional(),
+  city: z.string().min(2).max(100).trim().optional(),
+  state: z.string().min(2).max(100).trim().optional(),
+  bio: z.string().max(3000).trim().optional().nullable(),
+  approach: z.string().max(3000).trim().optional().nullable(),
+  headline: z.string().max(300).trim().optional().nullable(),
+  profileImageUrl: z.string().url().max(2000).optional().nullable(),
+  coverImageUrl: z.string().url().max(2000).optional().nullable(),
+  whatsapp: z.string().max(30).trim().optional().nullable(),
+  instagram: z.string().max(100).trim().optional().nullable(),
+  website: z.string().url().max(500).optional().nullable(),
+  isPublic: z.boolean().optional(),
+  councilType: z.string().max(20).trim().optional().nullable(),
+  councilNumber: z.string().max(30).trim().optional().nullable(),
+})
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const professional = await prisma.professionalProfile.findUnique({
@@ -23,7 +46,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (!professional) {
-      return NextResponse.json({ error: 'Professional profile not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Perfil profissional não encontrado' }, { status: 404 })
     }
 
     return NextResponse.json({
@@ -55,53 +78,51 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Professional profile GET error:', error)
+    logError('Professional profile GET', error)
     return NextResponse.json(
-      { error: 'Failed to fetch professional profile' },
+      { error: 'Falha ao buscar perfil profissional' },
       { status: 500 }
     )
   }
 }
 
-// PATCH - Update professional profile
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     const body = await request.json()
+    const validated = profilePatchSchema.parse(body)
 
-    // Update user name if provided
-    if (body.fullName || body.name) {
+    if (validated.fullName || validated.name) {
       await prisma.user.update({
         where: { id: session.user.id },
-        data: { name: body.fullName || body.name },
+        data: { name: validated.fullName || validated.name },
       })
     }
 
-    // Update professional profile
     const professional = await (prisma.professionalProfile as any).update({
       where: { userId: session.user.id },
       data: {
-        fullName: body.fullName,
-        title: body.title,
-        specialty: body.specialty,
-        city: body.city,
-        state: body.state,
-        bio: body.bio,
-        approach: body.approach,
-        headline: body.headline,
-        profileImageUrl: body.profileImageUrl,
-        coverImageUrl: body.coverImageUrl,
-        whatsapp: body.whatsapp,
-        instagram: body.instagram,
-        website: body.website,
-        isPublic: body.isPublic,
-        ...(body.councilType !== undefined && { councilType: body.councilType || null }),
-        ...(body.councilNumber !== undefined && { councilNumber: body.councilNumber || null }),
+        fullName: validated.fullName,
+        title: validated.title,
+        specialty: validated.specialty,
+        city: validated.city,
+        state: validated.state,
+        bio: validated.bio,
+        approach: validated.approach,
+        headline: validated.headline,
+        profileImageUrl: validated.profileImageUrl,
+        coverImageUrl: validated.coverImageUrl,
+        whatsapp: validated.whatsapp,
+        instagram: validated.instagram,
+        website: validated.website,
+        isPublic: validated.isPublic,
+        ...(validated.councilType !== undefined && { councilType: validated.councilType || null }),
+        ...(validated.councilNumber !== undefined && { councilNumber: validated.councilNumber || null }),
       },
       include: {
         services: true,
@@ -138,9 +159,15 @@ export async function PATCH(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Professional profile PATCH error:', error)
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Dados inválidos', errors: error.errors.map((e) => ({ field: e.path.join('.'), message: e.message })) },
+        { status: 400 }
+      )
+    }
+    logError('Professional profile PATCH', error)
     return NextResponse.json(
-      { error: 'Failed to update professional profile' },
+      { error: 'Falha ao atualizar perfil profissional' },
       { status: 500 }
     )
   }
