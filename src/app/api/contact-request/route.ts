@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { z } from 'zod'
 import { checkRegisterRateLimit } from '@/lib/rateLimiter'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
 
 const contactRequestSchema = z.object({
   nome: z.string().min(2).max(100).trim(),
