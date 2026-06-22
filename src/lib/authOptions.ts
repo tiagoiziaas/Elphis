@@ -198,8 +198,12 @@ export const authOptions: NextAuthOptions = {
                 bio: profile.bio,
                 approach: profile.approach,
                 headline: profile.headline,
-                profileImageUrl: profile.profileImageUrl,
-                coverImageUrl: profile.coverImageUrl,
+                profileImageUrl: profile.profileImageUrl && profile.profileImageUrl.length > 2000
+                  ? null
+                  : profile.profileImageUrl,
+                coverImageUrl: profile.coverImageUrl && profile.coverImageUrl.length > 2000
+                  ? null
+                  : profile.coverImageUrl,
                 whatsapp: profile.whatsapp,
                 instagram: profile.instagram,
                 website: profile.website,
