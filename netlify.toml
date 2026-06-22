@@ -5,18 +5,12 @@
 [build.environment]
   NEXT_FONT_GOOGLE_MOCKED_ITERATIONS = "1"
   NODE_VERSION = "20"
-  NEXT_USE_NETLIFY_EDGE = "true"
 
 [functions]
   node_bundler = "esbuild"
   included_files = [
-    "node_modules/@node-rs/argon2-*-*/argon2.*.node",
-    "node_modules/@node-rs/argon2/wasi.mjs",
     ".prisma/client/**/*",
     "node_modules/@prisma/client/**/*",
-    "node_modules/@node-rs/argon2-linux-x64-gnu/*",
-    "node_modules/@node-rs/argon2-darwin-x64/*",
-    "node_modules/@node-rs/argon2-win32-x64-msvc/*",
   ]
 
 [[plugins]]
