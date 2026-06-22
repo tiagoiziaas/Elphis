@@ -46,7 +46,7 @@ const securityHeaders = [
 
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: ['argon2'],
+    serverComponentsExternalPackages: ['@node-rs/argon2'],
   },
   images: {
     remotePatterns: [

@@ -1,61 +1,62 @@
-import argon2 from 'argon2'
+import { hash, verify } from '@node-rs/argon2'
 import bcrypt from 'bcryptjs'
 
-/**
- * Parâmetros OWASP 2024 para Argon2id.
- * - memoryCost: 64 MB — resistência a ataques de GPU/ASIC
- * - timeCost: 3 iterações
- * - parallelism: 4 threads
- */
-const ARGON2_OPTIONS: argon2.Options & { raw?: false } = {
-  type: argon2.argon2id,
-  memoryCost: 2 ** 16, // 64 MB
-  timeCost: 3,
-  parallelism: 4,
-  hashLength: 32,
+const ARGON2_OPTIONS = {
+  algorithm: 2 as const, // Algorithm.Argon2id
+  memoryCost: 19456, // 19 MiB por thread ( recomendado OWASP 2024 )
+  timeCost: 2,
+  parallelism: 1, // Lambda é single-thread ; paralelismo só multiplicaria memória
+  outputLen: 32,
 }
 
-/**
- * Detecta se um hash foi gerado com bcrypt (começa com $2b$ ou $2a$).
- * Usado para backward-compatibility com senhas antigas.
- */
-function isBcryptHash(hash: string): boolean {
-  return hash.startsWith('$2b$') || hash.startsWith('$2a$')
+function isBcryptHash(hashValue: string): boolean {
+  return hashValue.startsWith('$2b$') || hashValue.startsWith('$2a$')
+}
+
+function parseArgon2Params(
+  encoded: string,
+): { memoryCost: number; timeCost: number; parallelism: number } | null {
+  const match = encoded.match(/\$argon2id?\$v=\d+\$m=(\d+),t=(\d+),p=(\d+)/)
+  if (!match) return null
+  return {
+    memoryCost: parseInt(match[1], 10),
+    timeCost: parseInt(match[2], 10),
+    parallelism: parseInt(match[3], 10),
+  }
+}
+
+function needsRehash(
+  encoded: string,
+  options: typeof ARGON2_OPTIONS,
+): boolean {
+  const parsed = parseArgon2Params(encoded)
+  if (!parsed) return true
+  return (
+    parsed.memoryCost !== options.memoryCost ||
+    parsed.timeCost !== options.timeCost ||
+    parsed.parallelism !== options.parallelism
+  )
 }
 
 export class PasswordService {
-  /**
-   * Gera hash Argon2id da senha.
-   * Argon2 inclui salt aleatório automaticamente — não passe salt externo.
-   */
   static async hash(plainPassword: string): Promise<string> {
-    return argon2.hash(plainPassword, ARGON2_OPTIONS)
+    return hash(plainPassword, ARGON2_OPTIONS)
   }
 
-  /**
-   * Verifica a senha contra o hash armazenado.
-   * Suporta hashes bcrypt legados (backward-compatible) e Argon2id novos.
-   * Retorna { valid, needsRehash } — se needsRehash=true, re-hash na próxima autenticação.
-   */
   static async verify(
-    hash: string,
-    plainPassword: string
+    hashValue: string,
+    plainPassword: string,
   ): Promise<{ valid: boolean; needsRehash: boolean }> {
     try {
-      // Hash bcrypt legado → usa bcryptjs para verificar
-      if (isBcryptHash(hash)) {
-        const valid = await bcrypt.compare(plainPassword, hash)
-        // Sempre pede re-hash para migrar para Argon2id
+      if (isBcryptHash(hashValue)) {
+        const valid = await bcrypt.compare(plainPassword, hashValue)
         return { valid, needsRehash: valid }
       }
 
-      // Hash Argon2id → verificação normal
-      const valid = await argon2.verify(hash, plainPassword)
-      // Verifica se os parâmetros de custo precisam ser atualizados
-      const needsRehash = valid ? argon2.needsRehash(hash, ARGON2_OPTIONS) : false
-      return { valid, needsRehash }
+      const valid = await verify(hashValue, plainPassword)
+      const rehash = valid ? needsRehash(hashValue, ARGON2_OPTIONS) : false
+      return { valid, needsRehash: rehash }
     } catch {
-      // Hash malformado ou algoritmo desconhecido → nega acesso sem vazar informação
       return { valid: false, needsRehash: false }
     }
   }
