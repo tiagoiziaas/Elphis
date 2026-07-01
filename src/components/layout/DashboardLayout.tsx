@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, User, FileText, Calendar, Users, Settings,
   CreditCard, ChevronRight, Sparkles, LogOut, Sun, Moon, Monitor, Wallet,
+  ClipboardList,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,7 @@ const menuItems = [
   { href: '/dashboard/conteudos', label: 'Conteúdos', icon: FileText },
   { href: '/dashboard/agenda', label: 'Agenda', icon: Calendar },
   { href: '/dashboard/pacientes', label: 'Pacientes', icon: Users },
+  { href: '/dashboard/anamnese', label: 'Anamnese', icon: ClipboardList },
   { href: '/dashboard/financeiro', label: 'Financeiro', icon: Wallet },
   { href: '/dashboard/cartao-visitas', label: 'Cartão de Visitas', icon: CreditCard },
   { href: '/dashboard/configuracoes', label: 'Configurações', icon: Settings },

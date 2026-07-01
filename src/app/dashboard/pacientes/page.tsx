@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
   Users, Mail, Phone, Search, Loader2, Plus, Edit, Trash2,
-  MapPin, UserCheck, UserX,
+  MapPin, ClipboardList, Send,
 } from 'lucide-react'
 import { DashboardHeader } from '../Header'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
@@ -15,6 +15,9 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { NewPatientModal } from '@/components/dashboard/NewPatientModal'
+
+import { AnamneseLinkModal } from '@/components/dashboard/AnamneseLinkModal'
+import { PatientAnamnesePdfButton } from '@/components/dashboard/PatientAnamnesePdfButton'
 import { useToast } from '@/components/ui/use-toast'
 
 interface Patient {
@@ -54,6 +57,8 @@ export default function PatientsPage() {
   const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
+
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
 
   useEffect(() => { if (status === 'authenticated') fetchPatients() }, [status])
   useEffect(() => {
@@ -106,13 +111,23 @@ export default function PatientsPage() {
             <h1 className="font-display font-bold text-2xl md:text-3xl text-foreground mb-1">Pacientes</h1>
             <p className="text-muted-foreground text-sm">Gerencie seus pacientes e histórico de atendimentos</p>
           </div>
-          <Button
-            onClick={() => setIsNewPatientModalOpen(true)}
-            className="rounded-xl bg-gradient-to-r from-primary to-orange-600 text-white shadow-lg shadow-primary/25 h-10 text-sm"
-          >
-            <Plus className="h-4 w-4 mr-1.5" />
-            Novo Paciente
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsLinkModalOpen(true)}
+              className="rounded-xl border-violet-300 text-violet-700 hover:bg-violet-50 dark:hover:bg-violet-900/20 h-10 text-sm gap-1.5"
+            >
+              <Send className="h-4 w-4" />
+              Enviar Anamnese por Link
+            </Button>
+            <Button
+              onClick={() => setIsNewPatientModalOpen(true)}
+              className="rounded-xl bg-gradient-to-r from-primary to-orange-600 text-white shadow-lg shadow-primary/25 h-10 text-sm"
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Novo Paciente
+            </Button>
+          </div>
         </motion.div>
 
         {/* Stats */}
@@ -229,7 +244,18 @@ export default function PatientsPage() {
                           </Badge>
                         </td>
                         <td className="px-5 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="sm"
+                              onClick={() => { setSelectedPatient(patient); setIsEditModalOpen(true) }}
+                              className="h-8 px-2.5 text-xs text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg gap-1.5 font-medium"
+                            >
+                              <ClipboardList className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Anamnese</span>
+                            </Button>
+                            <PatientAnamnesePdfButton
+                              patientId={patient.id}
+                              patientName={`${patient.firstName} ${patient.lastName}`}
+                            />
                             <Button variant="ghost" size="icon" onClick={() => { setSelectedPatient(patient); setIsEditModalOpen(true) }}
                               className="h-8 w-8 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
                               <Edit className="h-4 w-4" />
@@ -251,6 +277,12 @@ export default function PatientsPage() {
 
         <NewPatientModal open={isNewPatientModalOpen} onOpenChange={setIsNewPatientModalOpen} onSuccess={fetchPatients} />
         <NewPatientModal open={isEditModalOpen} onOpenChange={setIsEditModalOpen} onSuccess={fetchPatients} patientToEdit={selectedPatient} />
+
+        {/* Link de anamnese genérico — cria cadastro automaticamente ao ser preenchido */}
+        <AnamneseLinkModal
+          open={isLinkModalOpen}
+          onOpenChange={setIsLinkModalOpen}
+        />
       </DashboardLayout>
     </>
   )

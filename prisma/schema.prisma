@@ -62,6 +62,9 @@ model ProfessionalProfile {
   availabilityRules AvailabilityRule[]
   appointments      Appointment[]
   patients          Patient[]
+  anamneses         Anamnese[]
+  anamneseTokens    AnamneseToken[]
+  customTemplates   CustomAnamneseTemplate[]
   categoryId                String?            @map("category_id")
   category                  Category?          @relation(fields: [categoryId], references: [id])
   businessCard              BusinessCard?
@@ -272,11 +275,194 @@ model Patient {
   updatedAt         DateTime           @updatedAt @map("updated_at")
   
   appointments      Appointment[]
+  anamneses         Anamnese[]
+  customSubmissions CustomAnamneseSubmission[]
+  customTokens      CustomAnamneseToken[]
 
   @@index([professionalProfileId])
   @@index([email])
   @@index([phone])
   @@map("patients")
+}
+
+// AnamneseToken - token for patient to fill anamnesis via link
+model AnamneseToken {
+  id                    String              @id @default(cuid())
+  token                 String              @unique
+  professionalProfileId String              @map("professional_profile_id")
+  professionalProfile   ProfessionalProfile @relation(fields: [professionalProfileId], references: [id], onDelete: Cascade)
+  patientName           String?             @map("patient_name") // optional pre-fill
+  expiresAt             DateTime            @map("expires_at")
+  usedAt                DateTime?           @map("used_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  anamnese              Anamnese?
+
+  @@index([token])
+  @@index([professionalProfileId])
+  @@map("anamnese_tokens")
+}
+
+// Anamnese - Anamnese Infantil de Psicologia
+model Anamnese {
+  id                    String              @id @default(cuid())
+  professionalProfileId String              @map("professional_profile_id")
+  professionalProfile   ProfessionalProfile @relation(fields: [professionalProfileId], references: [id], onDelete: Cascade)
+  patientId             String?             @map("patient_id")
+  patient               Patient?            @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  tokenId               String?             @unique @map("token_id")
+  anamneseToken         AnamneseToken?      @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+  preenchidoPor         String              @default("profissional") @map("preenchido_por") // "profissional" | "paciente"
+
+  // Identificação do paciente
+  nomeCompleto          String?             @map("nome_completo")
+  dataNascimento        String?             @map("data_nascimento")
+  idade                 String?
+  sexo                  String?
+  escolaridade          String?
+  endereco              String?
+  cidade                String?
+
+  // Responsáveis
+  nomePai               String?             @map("nome_pai")
+  idadePai              String?             @map("idade_pai")
+  estadoCivilPai        String?             @map("estado_civil_pai")
+  rgPai                 String?             @map("rg_pai")
+  cpfPai                String?             @map("cpf_pai")
+  escolaridadePai       String?             @map("escolaridade_pai")
+  profissaoPai          String?             @map("profissao_pai")
+  telefonePai           String?             @map("telefone_pai")
+  nomeMae               String?             @map("nome_mae")
+  idadeMae              String?             @map("idade_mae")
+  estadoCivilMae        String?             @map("estado_civil_mae")
+  rgMae                 String?             @map("rg_mae")
+  cpfMae                String?             @map("cpf_mae")
+  escolaridadeMae       String?             @map("escolaridade_mae")
+  profissaoMae          String?             @map("profissao_mae")
+  telefoneMae           String?             @map("telefone_mae")
+  encaminhadoPor        String?             @map("encaminhado_por")
+
+  // Queixa principal
+  queixa                String?             @db.Text
+  resideCom             String?             @map("reside_com") @db.Text
+  irmaos                String?             @db.Text
+  adotado               String?
+
+  // Gestação
+  gestacaoPlanejada     String?             @map("gestacao_planejada")
+  gestacaoDesejada      String?             @map("gestacao_desejada")
+  prenatal              String?
+  intercorrencias       String?             @db.Text
+  consumoSubstancias    String?             @map("consumo_substancias") @db.Text
+  transfusao            String?
+  tombo                 String?             @db.Text
+  condicoeNascimento    String?             @map("condicoe_nascimento") @db.Text
+
+  // Saúde
+  acidentes             String?             @db.Text
+  alergias              String?
+  bronquiteAsma         String?             @map("bronquite_asma")
+  visao                 String?
+  audicao               String?
+  dorcabeca             String?
+  desmaios              String?
+  convulsoes            String?
+  historiaFamiliar      String?             @map("historia_familiar")
+  obsSaude              String?             @map("obs_saude") @db.Text
+
+  // Alimentação
+  amamentacao           String?
+  alimentacao           String?             @db.Text
+  forcadaAlimentar      String?             @map("forcada_alimentar")
+  comeSemDerrubar       String?             @map("come_sem_derrubar")
+  ajudaAlimentacao      String?             @map("ajuda_alimentacao")
+  obsAlimentacao        String?             @map("obs_alimentacao") @db.Text
+
+  // Sono
+  dormeBem              String?             @map("dorme_bem")
+  qualidadeSono         String?             @map("qualidade_sono")
+  falaDormindo          String?             @map("fala_dormindo")
+  sonambulo             String?
+  rangeDentes           String?             @map("range_dentes")
+  quartoSeparado        String?             @map("quarto_separado")
+  comQuemDorme          String?             @map("com_quem_dorme")
+  acordaCamaPais        String?             @map("acorda_cama_pais")
+  obsSono               String?             @map("obs_sono") @db.Text
+
+  // Desenvolvimento psicomotor
+  comoBebe              String?             @map("como_bebe")
+  lentoTarefas          String?             @map("lento_tarefas")
+  vesteSozinho          String?             @map("veste_sozinho")
+  banhaSozinho          String?             @map("banha_sozinho")
+  calcaSozinho          String?             @map("calca_sozinho")
+  noCalcados            String?             @map("no_calcados")
+  desastrado            String?
+  esportes              String?
+  roiUnhas              String?             @map("roi_unhas")
+  chupaDedo             String?             @map("chupa_dedo")
+  manias                String?
+  ajudaTarefas          String?             @map("ajuda_tarefas")
+  obsMotor              String?             @map("obs_motor") @db.Text
+
+  // Escolaridade
+  gostaEscola           String?             @map("gosta_escola")
+  aceitoPelosAmigos     String?             @map("aceito_pelos_amigos")
+  repetiu               String?
+  motivoRepetiu         String?             @map("motivo_repetiu")
+  gostaEstudar          String?             @map("gosta_estudar")
+  habitoLeitura         String?             @map("habito_leitura")
+  fazLicoes             String?             @map("faz_licoes")
+  paisEstudam           String?             @map("pais_estudam")
+  mudouEscola           String?             @map("mudou_escola")
+  motivoMudou           String?             @map("motivo_mudou")
+  matematica            String?
+  dificuldadeLeitura    String?             @map("dificuldade_leitura")
+  irrequieta            String?
+  circunstancias        String?
+  dificuldadesEscola    String?             @map("dificuldades_escola") @db.Text
+  professoresAcham      String?             @map("professores_acham")
+  obsEscola             String?             @map("obs_escola") @db.Text
+
+  // Linguagem
+  comunicacaoAtual      String?             @map("comunicacao_atual") @db.Text
+  obsLinguagem          String?             @map("obs_linguagem") @db.Text
+
+  // Sexualidade
+  educacaoSexual        String?             @map("educacao_sexual")
+  dequemEducacaoSexual  String?             @map("dequem_educacao_sexual")
+  comoFoiSexual         String?             @map("como_foi_sexual")
+  curiosidadeSexual     String?             @map("curiosidade_sexual")
+  paisConversam         String?             @map("pais_conversam")
+  obsSexualidade        String?             @map("obs_sexualidade") @db.Text
+
+  // Aspectos ambientais
+  brincaSozinha         String?             @map("brinca_sozinha")
+  brincaComIdade        String?             @map("brinca_com_idade")
+  fazAmigos             String?             @map("faz_amigos")
+  adaptaMeio            String?             @map("adapta_meio")
+  relacaoPais           String?             @map("relacao_pais")
+  relacaoIrmaos         String?             @map("relacao_irmaos")
+  medidasDisciplinares  String?             @map("medidas_disciplinares") @db.Text
+  quemUsa               String?             @map("quem_usa")
+  reacoesMedidas        String?             @map("reacoes_medidas")
+  obsAmbiental          String?             @map("obs_ambiental") @db.Text
+
+  // Características pessoais e afetivo-emocionais
+  aspectoEmocional      String?             @map("aspecto_emocional") @db.Text
+  caracteristicas       String?             @db.Text // JSON array of selected traits
+  outrasCaracteristicas String?             @map("outras_caracteristicas")
+  reageContrariedade    String?             @map("reage_contrariedade")
+  atividadesPreferidas  String?             @map("atividades_preferidas")
+  obsEmocional          String?             @map("obs_emocional") @db.Text
+
+  // Rotina diária
+  rotinaDiaria          String?             @map("rotina_diaria") @db.Text
+
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  @@index([professionalProfileId])
+  @@index([patientId])
+  @@map("anamneses")
 }
 
 // Audit Log - append-only, encrypted, HMAC-protected
@@ -296,4 +482,56 @@ model AuditLog {
   @@index([eventType])
   @@index([eventTime])
   @@map("audit_logs")
+}
+
+model CustomAnamneseTemplate {
+  id                    String                    @id @default(cuid())
+  professionalProfileId String                    @map("professional_profile_id")
+  professionalProfile   ProfessionalProfile       @relation(fields: [professionalProfileId], references: [id], onDelete: Cascade)
+  title                 String
+  questionsJson         String                    @db.Text
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @updatedAt @map("updated_at")
+  submissions           CustomAnamneseSubmission[]
+  tokens                CustomAnamneseToken[]
+
+  @@index([professionalProfileId])
+  @@map("custom_anamnese_templates")
+}
+
+model CustomAnamneseSubmission {
+  id                    String                    @id @default(cuid())
+  templateId            String                    @map("template_id")
+  template              CustomAnamneseTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  professionalProfileId String                    @map("professional_profile_id")
+  patientId             String?                   @map("patient_id")
+  patient               Patient?                  @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  nomeCompleto          String?                   @map("nome_completo")
+  answersJson           String                    @db.Text
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @updatedAt @map("updated_at")
+
+  @@index([templateId])
+  @@index([professionalProfileId])
+  @@index([patientId])
+  @@map("custom_anamnese_submissions")
+}
+
+model CustomAnamneseToken {
+  id                    String                    @id @default(cuid())
+  token                 String                    @unique
+  templateId            String                    @map("template_id")
+  template              CustomAnamneseTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  professionalProfileId String                    @map("professional_profile_id")
+  patientId             String?                   @map("patient_id")
+  patient               Patient?                  @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  expiresAt             DateTime                  @map("expires_at")
+  usedAt                DateTime?                 @map("used_at")
+  createdAt             DateTime                  @default(now()) @map("created_at")
+
+  @@index([token])
+  @@index([templateId])
+  @@index([professionalProfileId])
+  @@index([patientId])
+  @@map("custom_anamnese_tokens")
 }

@@ -7,6 +7,104 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { PatientAnamnesePdfButton } from './PatientAnamnesePdfButton'
+
+interface Question {
+  id: string
+  label: string
+  type: 'text' | 'textarea' | 'radio' | 'checkbox' | 'select'
+  options?: string[]
+  required?: boolean
+}
+
+function DynamicQuestion({
+  question,
+  value,
+  onChange,
+}: {
+  question: Question
+  value: any
+  onChange: (val: any) => void
+}) {
+  const inputClass = "rounded-lg text-sm h-9 border border-border/60 focus:border-primary/40 bg-background w-full px-3 outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+  const textareaClass = "rounded-lg text-sm border border-border/60 focus:border-primary/40 bg-background resize-none w-full px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+
+  if (question.type === 'textarea') {
+    return (
+      <textarea
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        rows={3}
+        className={textareaClass}
+        placeholder="Sua resposta..."
+      />
+    )
+  }
+
+  if (question.type === 'radio') {
+    const opts = question.options || []
+    return (
+      <div className="flex flex-wrap gap-2.5 pt-1">
+        {opts.map(opt => (
+          <label key={opt} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm transition-all ${value === opt ? 'border-primary bg-primary/8 text-primary font-medium' : 'border-border/60 text-foreground hover:border-border'}`}>
+            <input type="radio" checked={value === opt} onChange={() => onChange(opt)} className="w-3.5 h-3.5 accent-primary" />
+            {opt}
+          </label>
+        ))}
+      </div>
+    )
+  }
+
+  if (question.type === 'checkbox') {
+    const opts = question.options || []
+    const selected: string[] = Array.isArray(value) ? value : []
+    return (
+      <div className="flex flex-wrap gap-2 pt-1">
+        {opts.map(opt => {
+          const checked = selected.includes(opt)
+          return (
+            <label key={opt} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm transition-all ${checked ? 'border-primary bg-primary/8 text-primary font-medium' : 'border-border/60 text-foreground hover:border-border'}`}>
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => {
+                  if (checked) onChange(selected.filter(s => s !== opt))
+                  else onChange([...selected, opt])
+                }}
+                className="w-3.5 h-3.5 accent-primary"
+              />
+              {opt}
+            </label>
+          )
+        })}
+      </div>
+    )
+  }
+
+  if (question.type === 'select') {
+    const opts = question.options || []
+    return (
+      <select
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        className="rounded-lg text-sm h-9 border border-border/60 focus:border-primary/40 bg-background w-full px-3 outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+      >
+        <option value="">Selecione...</option>
+        {opts.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+      </select>
+    )
+  }
+
+  return (
+    <input
+      type="text"
+      value={value || ''}
+      onChange={e => onChange(e.target.value)}
+      placeholder="Sua resposta..."
+      className={inputClass}
+    />
+  )
+}
 import {
   Dialog,
   DialogContent,
@@ -109,6 +207,12 @@ export function NewPatientModal({ open, onOpenChange, onSuccess, patientToEdit }
     defaultConsultationType: '',
     defaultConsultationValue: '',
   })
+  const [templates, setTemplates] = useState<any[]>([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+  const [customAnswers, setCustomAnswers] = useState<Record<string, any>>({})
+  const [customSubmissionId, setCustomSubmissionId] = useState<string | null>(null)
+  const [patientSubmissions, setPatientSubmissions] = useState<any[]>([])
+  const [profProfile, setProfProfile] = useState<any>(null)
 
   // Load patient data when editing
   useEffect(() => {
@@ -135,6 +239,38 @@ export function NewPatientModal({ open, onOpenChange, onSuccess, patientToEdit }
         defaultConsultationType: patientToEdit.defaultConsultationType || '',
         defaultConsultationValue: patientToEdit.defaultConsultationValue?.toString() || '',
       })
+
+      // Fetch custom submissions
+      fetch(`/api/professional/custom-anamnese/submissions?patientId=${patientToEdit.id}`)
+        .then(res => res.json())
+        .then(data => {
+          const list = data.submissions || []
+          setPatientSubmissions(list)
+          if (list.length > 0) {
+            const sub = list[0]
+            setSelectedTemplateId(sub.templateId)
+            setCustomAnswers(JSON.parse(sub.answersJson || '{}'))
+            setCustomSubmissionId(sub.id)
+          } else {
+            setSelectedTemplateId('')
+            setCustomAnswers({})
+            setCustomSubmissionId(null)
+          }
+        })
+        .catch(() => {
+          setPatientSubmissions([])
+          setSelectedTemplateId('')
+          setCustomAnswers({})
+          setCustomSubmissionId(null)
+        })
+
+      // Fetch professional profile for PDF name/crp
+      fetch('/api/professional/profile')
+        .then(res => res.json())
+        .then(data => {
+          setProfProfile(data)
+        })
+        .catch(() => {})
     } else if (!patientToEdit) {
       // Reset form when creating new patient
       setFormData({
@@ -159,8 +295,22 @@ export function NewPatientModal({ open, onOpenChange, onSuccess, patientToEdit }
         defaultConsultationType: '',
         defaultConsultationValue: '',
       })
+      setSelectedTemplateId('')
+      setCustomAnswers({})
+      setCustomSubmissionId(null)
+      setPatientSubmissions([])
     }
   }, [patientToEdit, open])
+
+  // Fetch templates when modal opens
+  useEffect(() => {
+    if (open) {
+      fetch('/api/professional/custom-anamnese/templates')
+        .then(res => res.json())
+        .then(data => setTemplates(data.templates || []))
+        .catch(() => setTemplates([]))
+    }
+  }, [open])
 
   const handleChange = (field: keyof PatientFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -179,6 +329,7 @@ export function NewPatientModal({ open, onOpenChange, onSuccess, patientToEdit }
 
     try {
       setLoading(true)
+      let savedPatient: any = null
       
       if (patientToEdit) {
         // Update existing patient
@@ -194,12 +345,7 @@ export function NewPatientModal({ open, onOpenChange, onSuccess, patientToEdit }
         })
 
         if (response.ok) {
-          toast({
-            title: 'Paciente atualizado!',
-            description: `${formData.firstName} ${formData.lastName} foi atualizado com sucesso.`,
-          })
-          onSuccess()
-          onOpenChange(false)
+          savedPatient = await response.json()
         } else {
           throw new Error('Failed to update patient')
         }
@@ -216,39 +362,36 @@ export function NewPatientModal({ open, onOpenChange, onSuccess, patientToEdit }
         })
 
         if (response.ok) {
-          toast({
-            title: 'Paciente cadastrado!',
-            description: `${formData.firstName} ${formData.lastName} foi adicionado com sucesso.`,
-          })
-          onSuccess()
-          onOpenChange(false)
-          // Reset form
-          setFormData({
-            firstName: '',
-            lastName: '',
-            email: '',
-            phone: '',
-            whatsapp: '',
-            dateOfBirth: '',
-            gender: '',
-            age: '',
-            address: '',
-            addressNumber: '',
-            addressComplement: '',
-            neighborhood: '',
-            city: '',
-            state: '',
-            zipCode: '',
-            chiefComplaint: '',
-            medicalHistory: '',
-            notes: '',
-            defaultConsultationType: '',
-            defaultConsultationValue: '',
-          })
+          savedPatient = await response.json()
         } else {
           throw new Error('Failed to create patient')
         }
       }
+
+      // If a template is selected, save the custom anamnese answers
+      if (savedPatient && selectedTemplateId && selectedTemplateId !== 'none') {
+        const subRes = await fetch('/api/professional/custom-anamnese/submissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            templateId: selectedTemplateId,
+            patientId: savedPatient.id,
+            nomeCompleto: `${savedPatient.firstName} ${savedPatient.lastName}`,
+            answersJson: JSON.stringify(customAnswers),
+            submissionId: customSubmissionId || undefined,
+          }),
+        })
+        if (!subRes.ok) {
+          throw new Error('Failed to save anamnese answers')
+        }
+      }
+
+      toast({
+        title: patientToEdit ? 'Paciente atualizado!' : 'Paciente cadastrado!',
+        description: `${formData.firstName} ${formData.lastName} foi salvo com sucesso.`,
+      })
+      onSuccess()
+      onOpenChange(false)
     } catch (error) {
       console.error('Failed to save patient:', error)
       toast({
@@ -559,24 +702,102 @@ export function NewPatientModal({ open, onOpenChange, onSuccess, patientToEdit }
                 </div>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              ℹ️ Estes valores serão preenchidos automaticamente ao criar um agendamento para este paciente.
-            </p>
+          {/* Anamnese Personalizada */}
+          <div className="space-y-4 border-t border-border/40 pt-4">
+            <h4 className="font-semibold text-foreground flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-bold">5</span>
+              Anamnese Personalizada
+            </h4>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="anamneseTemplate">Modelo de Anamnese Vinculado</Label>
+                <Select
+                  value={selectedTemplateId || 'none'}
+                  onValueChange={(val) => {
+                    if (val === 'none') {
+                      setSelectedTemplateId('')
+                      setCustomAnswers({})
+                      setCustomSubmissionId(null)
+                    } else {
+                      setSelectedTemplateId(val)
+                      const existingSub = patientSubmissions.find(s => s.templateId === val)
+                      if (existingSub) {
+                        setCustomAnswers(JSON.parse(existingSub.answersJson || '{}'))
+                        setCustomSubmissionId(existingSub.id)
+                      } else {
+                        setCustomAnswers({})
+                        setCustomSubmissionId(null)
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="rounded-lg">
+                    <SelectValue placeholder="Selecione o modelo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {templates.map(t => (
+                      <SelectItem key={t.id} value={t.id}>{t.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedTemplateId && selectedTemplateId !== 'none' && (() => {
+                const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
+                let questionsList: Question[] = []
+                if (selectedTemplate) {
+                  try {
+                    questionsList = JSON.parse(selectedTemplate.questionsJson)
+                  } catch {}
+                }
+                return (
+                  <div className="space-y-4 bg-muted/30 border border-border/40 rounded-xl p-4 mt-2">
+                    {questionsList.map((q, i) => (
+                      <div key={q.id} className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-600">
+                          {i + 1}. {q.label}
+                          {q.required && <span className="text-red-500 ml-1">*</span>}
+                        </Label>
+                        <DynamicQuestion
+                          question={q}
+                          value={customAnswers[q.id]}
+                          onChange={(val) => setCustomAnswers(prev => ({ ...prev, [q.id]: val }))}
+                        />
+                      </div>
+                    ))}
+                    {questionsList.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">Este modelo de anamnese não possui perguntas.</p>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={loading} className="rounded-xl bg-gradient-to-r from-primary to-orange-600 text-white shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all">
-            {loading ? 'Salvando...' : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Salvar Paciente
-              </>
+        <DialogFooter className="gap-2 flex items-center justify-between sm:justify-between w-full">
+          <div className="flex-1 flex justify-start">
+            {patientToEdit && (
+              <PatientAnamnesePdfButton
+                patientId={patientToEdit.id}
+                patientName={`${formData.firstName} ${formData.lastName}`}
+              />
             )}
-          </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={loading} className="rounded-xl bg-gradient-to-r from-primary to-orange-600 text-white shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all">
+              {loading ? 'Salvando...' : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Salvar Paciente
+                </>
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
