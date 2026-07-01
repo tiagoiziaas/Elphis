@@ -702,6 +702,7 @@ export function NewPatientModal({ open, onOpenChange, onSuccess, patientToEdit }
                 </div>
               </div>
             </div>
+          </div>
           {/* Anamnese Personalizada */}
           <div className="space-y-4 border-t border-border/40 pt-4">
             <h4 className="font-semibold text-foreground flex items-center gap-2">
